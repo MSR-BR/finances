@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculadora Avançada de Renda Fixa Brasil</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#0b1220;--panel:#111a2b;--muted:#9fb0d6;--accent:#2d7ef7}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:#e6ecff}
+    header{padding:20px 16px;background:linear-gradient(90deg,#0b1220,#0d1322 60%,#0b1220)}
+    h1{margin:0 0 6px 0;font-size:clamp(20px,3vw,28px)}
+    header p{margin:4px 0 0 0;color:var(--muted)}
+    .wrap{display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+    .card h2{font-size:18px;margin:0;padding:14px 14px 0 14px}
+    .card .body{padding:14px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0c1424;color:#e6ecff}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .muted{color:var(--muted);font-size:12px}
+    .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);border:none;color:white;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+    .btn.alt{background:#263552}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.15)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px 8px;border-bottom:1px dashed rgba(255,255,255,.1);font-size:13px}
+    th{color:var(--muted);font-weight:600;text-align:left}
+    .right{text-align:right}
+    .pill{font-size:11px;padding:3px 8px;border-radius:999px;background:#1b2842;color:#9fb0d6}
+    canvas{max-height:520px}
+    .error{border-color:#ef4444!important;box-shadow:0 0 0 2px rgba(239,68,68,.2)}
+    .hint{color:var(--muted);font-size:12px}
+    @media (max-width:940px){.wrap{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header class="card">
+    <h1>Calculadora Avançada de Renda Fixa Brasil</h1>
+    <div class="body">
+      <p>Adicione aplicações (R$), escolha o tipo (Pré, IPCA+ ou CDI+), datas e parâmetros. O gráfico mostra cada investimento e a soma total (eixo direito). Seus dados ficam offline.</p>
+      <p class="hint">Base padrão de capitalização: 365 dias/ano.</p>
+      <p>Créditos: Desenvolvido por <a href="http://profmarioreis.wordpress.com" target="_blank" rel="noopener">Mario Reis</a></p>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section class="card">
+      <h2>Nova aplicação</h2>
+      <div class="body">
+        <div class="row">
+          <div>
+            <label>Valor inicial (R$) *</label>
+            <input id="valor" type="number" required aria-required="true" step="0.01" inputmode="decimal" placeholder="Ex.: 1234,56" />
+            <small class="hint">Informe o valor em reais, com centavos quando houver.</small>
+          </div>
+          <div>
+            <label>Base de capitalização</label>
+            <select id="base">
+              <option value="365" selected>365 dias/ano</option>
+              <option value="252">252 dias úteis/ano</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Data da aplicação *</label>
+            <input id="dataIni" type="date" required aria-required="true" />
+          </div>
+          <div>
+            <label>Data de resgate *</label>
+            <input id="dataFim" type="date" required aria-required="true" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Tipo</label>
+            <select id="tipo">
+              <option value="pre">Pré-fixado</option>
+              <option value="pos_ipca">Pós: IPCA + Fixo</option>
+              <option value="pos_cdi">Pós: CDI + Fixo</option>
+            </select>
+          </div>
+          <div id="boxTaxa">
+            <label>Taxa (% a.a., se Pré) *</label>
+            <input id="taxaPre" type="number" step="0.01" placeholder="Ex.: 12.5" />
+          </div>
+        </div>
+        <div id="posIPCA" class="row" style="display:none">
+          <div>
+            <label>Fixo (spread, % a.a.)</label>
+            <input id="fixoIpca" type="number" step="0.01" placeholder="Ex.: 6.0" />
+          </div>
+          <div>
+            <label>IPCA (% a.a.) — suposição</label>
+            <input id="ipcaAnual" type="number" step="0.01" placeholder="Ex.: 5.0" value="5.0" />
+          </div>
+        </div>
+        <div id="posCDI" class="row" style="display:none">
+          <div>
+            <label>Fixo (spread sobre CDI, % a.a.)</label>
+            <input id="fixoCdi" type="number" step="0.01" placeholder="Ex.: 1.0" />
+          </div>
+          <div>
+            <label>CDI (% a.a.) — suposição</label>
+            <input id="cdiAnual" type="number" step="0.01" placeholder="Ex.: 12.0" value="12.0" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Aporte mensal (R$)</label>
+            <input id="aporteMensal" type="number" step="0.01" inputmode="decimal" placeholder="Ex.: 300,00 (opcional)" />
+          </div>
+          <div class="card" style="margin-top:0">
+            <div class="body">
+              <label><input type="checkbox" id="irAtivo" /> Descontar IR</label>
+              <div id="irBox" class="row" style="margin-top:8px;display:none">
+                <div>
+                  <label><input type="radio" name="irTipo" value="tabela" checked /> Tabela regressiva</label>
+                </div>
+                <div>
+                  <label><input type="radio" name="irTipo" value="fixo" /> Fixo 17,5%</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>Nome (opcional)</label>
+            <input id="nome" type="text" placeholder="Ex.: LTN 2027, IPCA+ 2030..." />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="btn" id="addBtn" type="button">➕ Adicionar aplicação</button>
+          </div>
+        </div>
+        <p class="hint">Campos com * são obrigatórios. Cálculo com capitalização diária conforme a base escolhida.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Aplicações</h2>
+      <div class="body">
+        <div class="toolbar" style="margin-bottom:10px">
+          <button class="btn alt" id="saveBtn">💾 Salvar</button>
+          <label class="btn ghost" for="importFile">📂 Importar</label>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th class="right">Valor (R$)</th>
+              <th>Início</th>
+              <th>Fim</th>
+              <th>IR</th>
+              <th>Parâmetros</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column:1 / -1">
+      <h2>Evolução</h2>
+      <div class="body">
+        <canvas id="chartInd"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function fmtBR(v){try{return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)}catch(e){return v}}
+    function toISO(d){return d.toISOString().slice(0,10)}
+    function parseDate(s){return new Date(s+'T00:00:00')}
+    function dateList(d0,d1){var a=[],d=new Date(d0);while(d<=d1){a.push(new Date(d));d.setDate(d.getDate()+1)}return a}
+    function parsePtNumber(s){if(s==null)return NaN;var t=String(s).trim();if(t.indexOf(',')>-1){t=t.replace(/\./g,'').replace(',','.')}var v=parseFloat(t);return isFinite(v)?v:NaN}
+    function randId(){return (window.crypto&&window.crypto.randomUUID)?window.crypto.randomUUID():'id_'+Date.now()+Math.random().toString(16).slice(2)}
+
+    var apps=[];
+    function el(id){return document.getElementById(id)}
+
+    function updateTipoUI(){var v=el('tipo').value;el('boxTaxa').style.display=(v==='pre')?'block':'none';el('posIPCA').style.display=(v==='pos_ipca')?'grid':'none';el('posCDI').style.display=(v==='pos_cdi')?'grid':'none'}
+
+    function dailyRate(a,b){return Math.pow(1+a/100,1/b)-1}
+    function irRate(d){if(d<=180)return 0.225; if(d<=360)return 0.20; if(d<=720)return 0.175; return 0.15}
+    function iofRate(d){if(d>=30)return 0;var x=Math.max(1,Math.min(29,d));return((30-x)*3)/100}
+
+    function lastDayOfMonth(y,m){return new Date(y,m+1,0).getDate()}
+    function isContributionDay(start,d){var sd=start.getDate();var ld=lastDayOfMonth(d.getFullYear(),d.getMonth());var due=Math.min(sd,ld);return d.getDate()===due && (d.getFullYear()>start.getFullYear() || d.getMonth()>start.getMonth())}
+
+    function evolve(app){var start=parseDate(app.d0),end=parseDate(app.d1),base=app.base||365;var rDay=0; if(app.tipo==='pre')rDay=dailyRate(app.taxa,base); if(app.tipo==='pos_ipca')rDay=dailyRate((app.ipca||0)+(app.fixo||0),base); if(app.tipo==='pos_cdi')rDay=dailyRate((app.cdi||0)+(app.fixo||0),base);var aporte=Number(app.aporte||0);var dates=dateList(start,end);var series=[],i;var v=app.valor;var invested=app.valor;for(i=0;i<dates.length;i++){var d=dates[i];if(aporte>0 && isContributionDay(start,d)){v+=aporte;invested+=aporte}var gross=v;var net=gross;var withIR=app.ir&&app.ir.enabled;var mode=(app.ir&&app.ir.mode)||'tabela';if(withIR){var days=i+1;var earn=Math.max(0,gross-invested);var iof=days<=30?earn*iofRate(days):0;var baseIR=Math.max(0,earn-iof);var irP=(mode==='fixo')?0.175:irRate(days);net=gross-iof-(baseIR*irP)}series.push({date:toISO(d),gross:gross,net:net});v*=1+rDay}return series}
+
+    function mergeDates(all){var s={},i,j;for(i=0;i<all.length;i++){for(j=0;j<all[i].length;j++){s[all[i][j].date]=1}}return Object.keys(s).sort()}
+    function sumSeries(all){var dates=mergeDates(all),maps=[],i,j;for(i=0;i<all.length;i++){var m={};for(j=0;j<all[i].length;j++){m[all[i][j].date]=all[i][j].value}maps.push(m)}var out=[];for(i=0;i<dates.length;i++){var dt=dates[i],sum=0;for(j=0;j<maps.length;j++){sum+=maps[j][dt]||0}out.push({date:dt,value:sum})}return out}
+
+    function labelTipo(t){if(t==='pre')return 'Pré'; if(t==='pos_ipca')return 'Pós IPCA+'; if(t==='pos_cdi')return 'Pós CDI+'; return t}
+    function labelIR(a){if(!(a.ir&&a.ir.enabled))return 'Sem IR';return a.ir.mode==='fixo'?'Descontar IR 17,5% fixo':'Descontar IR tabela'}
+
+    function persist(){try{localStorage.setItem('rf_apps',JSON.stringify(apps))}catch(e){}}
+    function clearForm(){var ids=['valor','taxaPre','fixoIpca','ipcaAnual','fixoCdi','cdiAnual','nome','aporteMensal'],i;for(i=0;i<ids.length;i++){var x=el(ids[i]);if(x)x.value=''}var cb=el('irAtivo');if(cb)cb.checked=false;var ib=el('irBox');if(ib)ib.style.display='none'}
+
+    function renderTable(){var tb=document.querySelector('#tbl tbody');if(!tb)return;tb.innerHTML='';var i;for(i=0;i<apps.length;i++){var a=apps[i];var tr=document.createElement('tr');var params=(a.tipo==='pre')?(a.taxa+'% a.a.'):(a.tipo==='pos_ipca'?('IPCA '+a.ipca+'% + '+a.fixo+'%'):('CDI '+a.cdi+'% + '+a.fixo+'%'));if(a.aporte&&a.aporte>0){params+=', aporte mensal '+fmtBR(a.aporte)}tr.innerHTML='<td>'+(a.nome||'-')+'</td>'+
+        '<td><span class="pill">'+labelTipo(a.tipo)+'</span></td>'+
+        '<td class="right">'+fmtBR(a.valor)+'</td>'+
+        '<td>'+a.d0+'</td>'+
+        '<td>'+a.d1+'</td>'+
+        '<td>'+labelIR(a)+'</td>'+
+        '<td>'+params+'</td>'+
+        '<td class="right"><button class="btn ghost" data-remove="'+a.id+'">Remover</button></td>';
+      tb.appendChild(tr)}}
+
+    function removeApp(id){var i,n=[];for(i=0;i<apps.length;i++){if(apps[i].id!==id)n.push(apps[i])}apps=n;persist();renderTable();draw()}
+
+    var chartInd=null;
+    function draw(){var list=[],i;for(i=0;i<apps.length;i++){list.push(evolve(apps[i]))}var tmp=[],j;for(i=0;i<list.length;i++){var s=list[i],t=[];for(j=0;j<s.length;j++){t.push({date:s[j].date,value:s[j].net})}tmp.push(t)}var merged=sumSeries(tmp);drawCharts(list,merged)}
+
+    function drawCharts(list,merged){var c=el('chartInd');if(!c||typeof Chart==='undefined')return; if(!merged.length){if(chartInd){chartInd.destroy();chartInd=null}return}var labels=[],i;for(i=0;i<merged.length;i++){labels.push(merged[i].date)}var ds=[],a;for(i=0;i<apps.length;i++){a=apps[i];var data=[],s=list[i],j;for(j=0;j<s.length;j++){data.push({x:s[j].date,y:(a.ir&&a.ir.enabled)?s[j].net:s[j].gross})}ds.push({label:a.nome||('Inv '+(i+1)),data:data,borderWidth:2.5,tension:.2,fill:false,pointRadius:0,pointHoverRadius:3,yAxisID:'yL'})}var sumData=[],k;for(k=0;k<merged.length;k++){sumData.push({x:merged[k].date,y:merged[k].value})}ds.push({label:'Soma (efetiva)',data:sumData,borderWidth:3,tension:.2,fill:false,pointRadius:0,yAxisID:'yR'});var scalesCfg={x:{type:'category',ticks:{autoSkip:true,maxTicksLimit:8}},yL:{type:'linear',position:'left',ticks:{callback:function(v){return fmtBR(v)}}},yR:{type:'linear',position:'right',grid:{drawOnChartArea:false},ticks:{callback:function(v){return fmtBR(v)}}}};var pluginsCfg={legend:{position:'bottom'},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmtBR(ctx.parsed.y)}}}};var optionsCfg={responsive:true,interaction:{mode:'nearest',intersect:false},plugins:pluginsCfg,scales:scalesCfg};var dataCfg={labels:labels,datasets:ds};var cfg={type:'line',data:dataCfg,options:optionsCfg};if(chartInd)chartInd.destroy();chartInd=new Chart(c,cfg)}
+
+    function handleAdd(){var ids=['valor','dataIni','dataFim','taxaPre'],i;for(i=0;i<ids.length;i++){var e=el(ids[i]);if(e&&e.classList)e.classList.remove('error')}var valor=parsePtNumber(el('valor')&&el('valor').value);var base=parseInt(el('base')&&el('base').value,10);var d0=el('dataIni')&&el('dataIni').value;var d1=el('dataFim')&&el('dataFim').value;var tp=el('tipo')&&el('tipo').value;var aporte=parsePtNumber(el('aporteMensal')&&el('aporteMensal').value)||0;var hasError=false;if(!(valor>0)){var v1=el('valor');if(v1)v1.classList.add('error');hasError=true}if(!d0){var v2=el('dataIni');if(v2)v2.classList.add('error');hasError=true}if(!d1){var v3=el('dataFim');if(v3)v3.classList.add('error');hasError=true}if(d0&&d1&&new Date(d1)<new Date(d0)){var v4=el('dataFim');if(v4)v4.classList.add('error');alert('Data de resgate não pode ser anterior à aplicação.');return}var item={id:randId(),nome:(el('nome')&&el('nome').value)||String(tp||'INV').toUpperCase(),tipo:tp,valor:valor,base:base,d0:d0,d1:d1,aporte:aporte};if(tp==='pre'){var tx=parsePtNumber(el('taxaPre')&&el('taxaPre').value);if(!(tx>0)){var v5=el('taxaPre');if(v5)v5.classList.add('error');hasError=true}else{item.taxa=tx}}if(hasError){alert('Preencha os campos obrigatórios destacados.');return}if(tp==='pos_ipca'){item.fixo=parsePtNumber(el('fixoIpca')&&el('fixoIpca').value)||0;item.ipca=parsePtNumber(el('ipcaAnual')&&el('ipcaAnual').value)||0}if(tp==='pos_cdi'){item.fixo=parsePtNumber(el('fixoCdi')&&el('fixoCdi').value)||0;item.cdi=parsePtNumber(el('cdiAnual')&&el('cdiAnual').value)||0}var cb=el('irAtivo');if(cb&&cb.checked){var r=document.querySelector('input[name="irTipo"]:checked');var mode=r?r.value:'tabela';item.ir={enabled:true,mode:mode}}else{item.ir={enabled:false,mode:'tabela'}}apps.push(item);persist();renderTable();draw();clearForm()}
+
+    function bind(){var addBtn=el('addBtn');if(addBtn&&!addBtn.dataset.bound){addBtn.addEventListener('click',handleAdd);addBtn.dataset.bound='1'}document.body.addEventListener('click',function(e){var t=e.target;var id=(t&&t.dataset)?t.dataset.remove:null;if(id)removeApp(id)});var tipoSel=el('tipo');if(tipoSel)tipoSel.addEventListener('change',updateTipoUI);var irCk=el('irAtivo');if(irCk)irCk.addEventListener('change',function(){var box=el('irBox');if(box)box.style.display=irCk.checked?'grid':'none'});var saveBtn=el('saveBtn');if(saveBtn)saveBtn.addEventListener('click',function(){var data={apps:apps};try{var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='renda_fixa_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}catch(e){}});var imp=el('importFile');if(imp)imp.addEventListener('change',function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var parsed=JSON.parse(r.result);if(Array.isArray(parsed))parsed={apps:parsed};var arr=Array.isArray(parsed.apps)?parsed.apps:[];var i;for(i=0;i<arr.length;i++){arr[i].id=arr[i].id||randId()}apps=arr;persist();renderTable();draw()}catch(err){alert('Arquivo inválido. Use o JSON exportado.')}};r.readAsText(f)})}
+
+    function init(){try{var saved=localStorage.getItem('rf_apps');apps=saved?JSON.parse(saved):[];renderTable();draw();bind();updateTipoUI()}catch(e){apps=[];renderTable();draw();bind();updateTipoUI()}}
+
+    if(document.readyState!=='loading'){init()}else{document.addEventListener('DOMContentLoaded',init)}
+  </script>
+</body>
+</html>
+
